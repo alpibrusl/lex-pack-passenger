@@ -1,0 +1,11 @@
+[package]
+name        = "lex-pack-passenger"
+version     = "0.1.0"
+description = "Passenger / on-demand domain pack — rider registry, fares, bookings, live-fleet dispatch matching, ride orchestration, GDPR data-subject rights, and AI Act transparency/oversight over automated assignment. Folds together what were five separate modules (passenger, DSR, dispatch, ride-dispatch, AI Act) since they are one on-demand-mobility flow."
+
+[dependencies]
+lex-soft   = { git = "https://github.com/alpibrusl/lex-soft" }
+lex-trail  = { git = "https://github.com/alpibrusl/lex-trail" }
+lex-web    = { git = "https://github.com/alpibrusl/lex-web" }
+lex-schema = { git = "https://github.com/alpibrusl/lex-schema" }
+lex-log    = { git = "https://github.com/alpibrusl/lex-log" }
