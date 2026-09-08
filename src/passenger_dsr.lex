@@ -102,7 +102,7 @@ fn erase_rider(db :: Db, tenant :: Str, rider_id :: Str) -> [sql, fs_read, fs_wr
   }
 }
 
-fn export_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str, c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn export_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str, c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   if not basedsr.authed(dsr_key, c) {
     if str.is_empty(dsr_key) {
       resp.forbidden("{\"error\":\"dsr endpoint disabled (DSR_KEY unset)\"}")
@@ -120,7 +120,7 @@ fn export_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str,
   }
 }
 
-fn erase_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str, c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn erase_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str, c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   if not basedsr.authed(dsr_key, c) {
     if str.is_empty(dsr_key) {
       resp.forbidden("{\"error\":\"dsr endpoint disabled (DSR_KEY unset)\"}")
@@ -147,10 +147,10 @@ fn erase_response(db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str, 
 # Host opt-in. Same DSR_KEY + ed25519 identity as the platform DSR (lex-soft), so
 # the DPO operates one key and exports/receipts verify against one public key.
 fn mount(r :: router.Router, db :: Db, dsr_key :: Str, sign_seed :: Bytes, pub_b64 :: Str) -> router.Router {
-  let r_ex := router.route_effectful(r, "POST", "/passenger/dsr/export", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r_ex := router.route_effectful(r, "POST", "/passenger/dsr/export", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     export_response(db, dsr_key, sign_seed, pub_b64, c)
   })
-  router.route_effectful(r_ex, "POST", "/passenger/dsr/erase", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  router.route_effectful(r_ex, "POST", "/passenger/dsr/erase", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     erase_response(db, dsr_key, sign_seed, pub_b64, c)
   })
 }

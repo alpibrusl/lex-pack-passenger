@@ -62,7 +62,7 @@ fn handle_disclosure() -> resp.Response {
 # Art. 14 human oversight + Art. 12 logging: a supervisor upholds/overrides an
 # automated assignment, or a worker's contest is logged. Recorded in the
 # oversight log and stamped on the tamper-evident trail.
-fn handle_oversight(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_oversight(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "ride_ref") {
     None => resp.bad_request("{\"error\":\"missing ride_ref\"}"),
     Some(ride_ref) => match jv.parse(c.body) {
@@ -99,7 +99,7 @@ fn oversight_to_json(r :: OversightRow) -> jv.Json {
   JObj([("oversight_id", JStr(r.id)), ("ride_ref", JStr(r.ride_ref)), ("action", JStr(r.action)), ("reviewer", JStr(r.reviewer)), ("reason", JStr(r.reason)), ("created_ms", JInt(r.created_ms))])
 }
 
-fn handle_list_oversight(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_list_oversight(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   let tenant := ctx.header_or(c, "X-Tenant-Id", "demo")
   let rows :: Result[List[OversightRow], SqlError] := sql.query(db, "SELECT id, ride_ref, action, reviewer, reason, created_ms FROM dispatch_oversight WHERE tenant = ? ORDER BY created_ms DESC LIMIT 200", [PStr(tenant)])
   match rows {
@@ -110,13 +110,13 @@ fn handle_list_oversight(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, s
 
 fn mount(r :: router.Router, db :: Db) -> [sql] router.Router {
   let __t := ensure_tables(db)
-  let r_disc := router.route_effectful(r, "GET", "/aiact/dispatch/disclosure", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r_disc := router.route_effectful(r, "GET", "/aiact/dispatch/disclosure", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_disclosure()
   })
-  let r_ovs := router.route_effectful(r_disc, "POST", "/aiact/dispatch/:ride_ref/oversight", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r_ovs := router.route_effectful(r_disc, "POST", "/aiact/dispatch/:ride_ref/oversight", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_oversight(c, db)
   })
-  router.route_effectful(r_ovs, "GET", "/aiact/dispatch/oversight", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  router.route_effectful(r_ovs, "GET", "/aiact/dispatch/oversight", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_list_oversight(c, db)
   })
 }

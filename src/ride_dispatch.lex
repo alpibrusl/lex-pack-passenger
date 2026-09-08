@@ -115,7 +115,7 @@ fn find_vehicle(fleet :: List[dispatch.Cand], ref :: Str) -> Option[dispatch.Can
 # Assign the nearest available vehicle to a booking. Reuses dispatch's live-fleet
 # fetch + matcher; advances the booking through the passenger state machine; and
 # records both a ride_assignments row and a signed `ride.assigned` trail event.
-fn handle_dispatch(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_dispatch(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "id") {
     None => resp.bad_request("{\"error\":\"missing booking id\"}"),
     Some(booking_id) => {
@@ -177,7 +177,7 @@ fn assignment_json(a :: AssignmentRow) -> jv.Json {
   JObj([("booking_id", JStr(a.booking_id)), ("vehicle_ref", JStr(a.vehicle_ref)), ("distance_km", JFloat(a.distance_km)), ("eta_min", JFloat(a.eta_min)), ("status", JStr(a.status)), ("assigned_ms", JInt(a.assigned_ms))])
 }
 
-fn handle_get_assignment(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_get_assignment(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "id") {
     None => resp.bad_request("{\"error\":\"missing booking id\"}"),
     Some(booking_id) => {
@@ -199,7 +199,7 @@ fn arrival_km() -> Float {
 # the ride once it reaches the pickup. Persists the fresh distance/ETA so the
 # assignment view stays live; a `ride.completed` event lands on the trail on
 # arrival. This is the poll the map uses for a live ETA countdown.
-fn handle_eta(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_eta(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "id") {
     None => resp.bad_request("{\"error\":\"missing booking id\"}"),
     Some(booking_id) => {
@@ -263,13 +263,13 @@ fn handle_eta(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto
 
 fn mount(r :: router.Router, db :: Db, telemetry_url :: Str) -> [sql] router.Router {
   let __t := ensure_tables(db)
-  let r_disp := router.route_effectful(r, "POST", "/passenger/bookings/:id/dispatch", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r_disp := router.route_effectful(r, "POST", "/passenger/bookings/:id/dispatch", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_dispatch(c, db, telemetry_url)
   })
-  let r_asg := router.route_effectful(r_disp, "GET", "/passenger/bookings/:id/assignment", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r_asg := router.route_effectful(r_disp, "GET", "/passenger/bookings/:id/assignment", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_get_assignment(c, db)
   })
-  router.route_effectful(r_asg, "GET", "/passenger/bookings/:id/eta", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  router.route_effectful(r_asg, "GET", "/passenger/bookings/:id/eta", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_eta(c, db, telemetry_url)
   })
 }

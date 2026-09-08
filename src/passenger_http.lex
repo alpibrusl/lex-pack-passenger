@@ -106,7 +106,7 @@ fn get_policy(db :: Db, tenant :: Str) -> [sql] passenger.FarePolicy {
   }
 }
 
-fn handle_create_rider(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_create_rider(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match jv.parse(c.body) {
     Err(_) => resp.bad_request("{\"error\":\"invalid json\"}"),
     Ok(j) => {
@@ -129,7 +129,7 @@ fn rider_to_json(r :: RiderRow) -> jv.Json {
   JObj([("rider_id", JStr(r.id)), ("name", JStr(r.name)), ("phone", JStr(r.phone)), ("created_ms", JInt(r.created_ms))])
 }
 
-fn handle_list_riders(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_list_riders(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   let tenant := ctx.header_or(c, "X-Tenant-Id", "demo")
   let rows :: Result[List[RiderRow], SqlError] := sql.query(db, "SELECT id, name, phone, created_ms FROM passenger_riders WHERE tenant = ? ORDER BY created_ms DESC LIMIT 200", [PStr(tenant)])
   match rows {
@@ -138,7 +138,7 @@ fn handle_list_riders(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql,
   }
 }
 
-fn handle_set_policy(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_set_policy(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match jv.parse(c.body) {
     Err(_) => resp.bad_request("{\"error\":\"invalid json\"}"),
     Ok(j) => {
@@ -160,12 +160,12 @@ fn handle_set_policy(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, 
   }
 }
 
-fn handle_get_policy(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_get_policy(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   let tenant := ctx.header_or(c, "X-Tenant-Id", "demo")
   resp.json(passenger.policy_json(get_policy(db, tenant)))
 }
 
-fn handle_create_booking(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_create_booking(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match jv.parse(c.body) {
     Err(_) => resp.bad_request("{\"error\":\"invalid json\"}"),
     Ok(j) => {
@@ -197,7 +197,7 @@ fn booking_to_json(b :: BookingRow) -> jv.Json {
   JObj([("booking_id", JStr(b.id)), ("rider_id", JStr(b.rider_id)), ("status", JStr(b.status)), ("distance_km", JFloat(b.distance_km)), ("duration_min", JFloat(b.duration_min)), ("fare_quote", JFloat(b.fare_quote)), ("fare_final", JFloat(b.fare_final)), ("currency", JStr(b.currency)), ("payment_status", JStr(b.payment_status)), ("created_ms", JInt(b.created_ms))])
 }
 
-fn handle_list_bookings(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_list_bookings(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   let tenant := ctx.header_or(c, "X-Tenant-Id", "demo")
   let rows :: Result[List[BookingRow], SqlError] := sql.query(db, "SELECT id, rider_id, status, distance_km, duration_min, fare_quote, fare_final, currency, payment_status, created_ms FROM passenger_bookings WHERE tenant = ? ORDER BY created_ms DESC LIMIT 200", [PStr(tenant)])
   match rows {
@@ -214,7 +214,7 @@ fn load_booking(db :: Db, tenant :: Str, id :: Str) -> [sql] Option[BookingRow] 
   }
 }
 
-fn handle_booking_status(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_booking_status(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "id") {
     None => resp.bad_request("{\"error\":\"missing booking id\"}"),
     Some(id) => match jv.parse(c.body) {
@@ -251,7 +251,7 @@ fn handle_booking_status(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, s
 # Record a B2C payment the tenant's PSP has already captured. We store only the
 # PSP's opaque reference and mark the booking paid — no card data, no fund
 # movement here.
-fn handle_booking_pay(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_booking_pay(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   match ctx.path_param(c, "id") {
     None => resp.bad_request("{\"error\":\"missing booking id\"}"),
     Some(id) => match jv.parse(c.body) {
@@ -281,28 +281,28 @@ fn handle_booking_pay(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql,
 
 fn mount(r :: router.Router, db :: Db) -> [sql] router.Router {
   let __t := ensure_tables(db)
-  let r1 := router.route_effectful(r, "POST", "/passenger/riders", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r1 := router.route_effectful(r, "POST", "/passenger/riders", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_create_rider(c, db)
   })
-  let r2 := router.route_effectful(r1, "GET", "/passenger/riders", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r2 := router.route_effectful(r1, "GET", "/passenger/riders", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_list_riders(c, db)
   })
-  let r3 := router.route_effectful(r2, "PUT", "/passenger/fare-policy", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r3 := router.route_effectful(r2, "PUT", "/passenger/fare-policy", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_set_policy(c, db)
   })
-  let r4 := router.route_effectful(r3, "GET", "/passenger/fare-policy", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r4 := router.route_effectful(r3, "GET", "/passenger/fare-policy", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_get_policy(c, db)
   })
-  let r5 := router.route_effectful(r4, "POST", "/passenger/bookings", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r5 := router.route_effectful(r4, "POST", "/passenger/bookings", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_create_booking(c, db)
   })
-  let r6 := router.route_effectful(r5, "GET", "/passenger/bookings", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r6 := router.route_effectful(r5, "GET", "/passenger/bookings", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_list_bookings(c, db)
   })
-  let r7 := router.route_effectful(r6, "POST", "/passenger/bookings/:id/status", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let r7 := router.route_effectful(r6, "POST", "/passenger/bookings/:id/status", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_booking_status(c, db)
   })
-  router.route_effectful(r7, "POST", "/passenger/bookings/:id/pay", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  router.route_effectful(r7, "POST", "/passenger/bookings/:id/pay", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_booking_pay(c, db)
   })
 }
