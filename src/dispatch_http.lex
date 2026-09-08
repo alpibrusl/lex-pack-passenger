@@ -122,7 +122,7 @@ fn ensure_tables(db :: Db) -> [sql] Unit {
 }
 
 # Preview: rank the live fleet for a pickup without assigning or writing anything.
-fn handle_match(c :: ctx.Ctx, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_match(c :: ctx.Ctx, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   if str.is_empty(telemetry_url) {
     resp.json_status(503, "{\"error\":\"telemetry service not configured (TELEMETRY_URL unset)\"}")
   } else {
@@ -145,7 +145,7 @@ fn handle_match(c :: ctx.Ctx, telemetry_url :: Str) -> [io, time, crypto, random
 
 # Firm request: assign the nearest vehicle, persist the ride, and record the
 # assignment on the trail. An empty/out-of-range fleet yields an unmatched ride.
-fn handle_request(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_request(c :: ctx.Ctx, db :: Db, telemetry_url :: Str) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   if str.is_empty(telemetry_url) {
     resp.json_status(503, "{\"error\":\"telemetry service not configured (TELEMETRY_URL unset)\"}")
   } else {
@@ -186,7 +186,7 @@ fn ride_to_json(r :: RideRow) -> jv.Json {
   JObj([("ride_id", JStr(r.id)), ("vehicle_ref", JStr(r.vehicle_ref)), ("distance_km", JFloat(r.distance_km)), ("eta_min", JFloat(r.eta_min)), ("status", JStr(r.status)), ("created_ms", JInt(r.created_ms))])
 }
 
-fn handle_list(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+fn handle_list(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
   let tenant := ctx.header_or(c, "X-Tenant-Id", "demo")
   let rows :: Result[List[RideRow], SqlError] := sql.query(db, "SELECT id, vehicle_ref, distance_km, eta_min, status, created_ms FROM dispatch_rides WHERE tenant = ? ORDER BY created_ms DESC LIMIT 100", [PStr(tenant)])
   match rows {
@@ -197,13 +197,13 @@ fn handle_list(c :: ctx.Ctx, db :: Db) -> [io, time, crypto, random, sql, fs_rea
 
 fn mount(r :: router.Router, db :: Db, telemetry_url :: Str) -> [sql] router.Router {
   let __t := ensure_tables(db)
-  let with_match := router.route_effectful(r, "POST", "/dispatch/match", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let with_match := router.route_effectful(r, "POST", "/dispatch/match", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_match(c, telemetry_url)
   })
-  let with_req := router.route_effectful(with_match, "POST", "/dispatch/request", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  let with_req := router.route_effectful(with_match, "POST", "/dispatch/request", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_request(c, db, telemetry_url)
   })
-  router.route_effectful(with_req, "GET", "/dispatch/requests", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc] resp.Response {
+  router.route_effectful(with_req, "GET", "/dispatch/requests", fn (c :: ctx.Ctx) -> [io, time, crypto, random, sql, fs_read, fs_write, net, concurrent, llm, proc, approval] resp.Response {
     handle_list(c, db)
   })
 }
